@@ -212,6 +212,57 @@ def build_daily(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int | float |
     return daily, summary
 
 
+def build_lot_links(df: pd.DataFrame) -> pd.DataFrame:
+    """LOT와 날짜·설비·불량유형을 연결한 검토용 표를 만든다."""
+    lots = df[
+        [
+            "lot_id",
+            "work_date",
+            "equipment_id",
+            "defect_type",
+            "inspected_qty",
+            "good_qty",
+            "defect_qty",
+        ]
+    ].copy()
+    lots["yield_pct"] = lots["good_qty"] / lots["inspected_qty"] * 100
+    lots = lots.sort_values(["work_date", "lot_id"]).reset_index(drop=True)
+    lots["work_date"] = lots["work_date"].dt.strftime("%Y-%m-%d")
+    return lots
+
+
+def build_equipment(df: pd.DataFrame) -> pd.DataFrame:
+    """설비별 수량 합계를 먼저 구한 뒤 수율을 계산한다."""
+    equipment = (
+        df.groupby("equipment_id", as_index=False)
+        .agg(
+            lot_count=("lot_id", "size"),
+            inspected_qty=("inspected_qty", "sum"),
+            good_qty=("good_qty", "sum"),
+            defect_qty=("defect_qty", "sum"),
+        )
+    )
+    equipment["yield_pct"] = equipment["good_qty"] / equipment["inspected_qty"] * 100
+    return equipment.sort_values(
+        ["yield_pct", "equipment_id"], ascending=[False, True]
+    ).reset_index(drop=True)
+
+
+def equipment_figure(equipment: pd.DataFrame) -> plt.Figure:
+    fig, axis = plt.subplots(figsize=(11, 5.5))
+    bars = axis.bar(
+        equipment["equipment_id"], equipment["yield_pct"], color=TEAL, width=0.58
+    )
+    axis.bar_label(bars, labels=[f"{value:.2f}%" for value in equipment["yield_pct"]], padding=4)
+    axis.set_title("설비별 생산 수율", loc="left", fontweight="bold")
+    axis.set_xlabel("설비 번호")
+    axis.set_ylabel("수율 (%)")
+    axis.set_ylim(0, 100)
+    axis.grid(axis="y", alpha=0.2)
+    fig.tight_layout()
+    return fig
+
+
 def pareto_figure(pareto: pd.DataFrame) -> plt.Figure:
     fig, left = plt.subplots(figsize=(12, 6.5))
     right = left.twinx()
@@ -346,6 +397,7 @@ def main() -> None:
     with st.sidebar:
         st.header("입력 자료")
         uploaded = st.file_uploader("합성 production.csv 선택", type=["csv"])
+        preview_rows = st.slider("CSV 미리보기 행 수", 5, 50, 15, 5)
         st.info("업로드 자료도 SYN-/SIM- 표기의 합성 연습자료만 사용할 수 있습니다.")
 
     try:
@@ -371,14 +423,131 @@ def main() -> None:
     try:
         pareto = build_pareto(validated)
         daily, summary = build_daily(validated)
+        lot_links = build_lot_links(validated)
+        equipment = build_equipment(validated)
     except Exception as exc:
         st.error(f"집계 중 오류가 발생했습니다: {exc}")
         st.stop()
 
     st.success(f"자동 검증 통과 · 입력: {source_name} · {len(validated):,}행")
-    pareto_tab, yield_tab, export_tab = st.tabs(
-        ["① 불량 파레토", "② 생산 수율", "③ 검증·내보내기"]
+    (
+        folder_tab,
+        guide_tab,
+        preview_tab,
+        data_validation_tab,
+        lot_tab,
+        equipment_tab,
+        pareto_tab,
+        yield_tab,
+        verification_tab,
+        approval_tab,
+    ) = st.tabs(
+        [
+            "📁 폴더",
+            "🧭 작업 안내",
+            "👀 CSV 미리보기",
+            "🧪 데이터 검증",
+            "🔗 LOT 연결",
+            "🏭 장비별 수율",
+            "📊 불량 파레토",
+            "📈 수율 추이",
+            "✅ 검증",
+            "🙋 사람 승인",
+        ]
     )
+
+    with folder_tab:
+        st.subheader("배포 폴더 구성")
+        st.code(
+            """qwerqwer/
+├─ streamlit_app.py
+├─ requirements.txt
+├─ README.md
+├─ data/
+│  └─ SYNTHETIC_production.csv
+└─ .streamlit/
+   └─ config.toml""",
+            language="text",
+        )
+        st.write(f"현재 입력: `{source_name}`")
+        st.info("기본 입력은 합성자료 사본이며 앱은 CSV를 읽기만 하고 수정하지 않습니다.")
+
+    with guide_tab:
+        st.subheader("작업 안내")
+        st.markdown(
+            """
+1. 사이드바에서 기본 합성자료를 사용하거나 다른 합성 CSV를 선택합니다.
+2. 필수 열·LOT·설비·날짜·수량 검증을 먼저 수행합니다.
+3. `LOT 연결`과 `장비별 수율`에서 연결 관계와 수량 합계 기준 수율을 확인합니다.
+4. `불량 파레토`에서 불량수량이 큰 유형부터 검토합니다.
+5. `수율 추이`에서 결측일을 0으로 바꾸지 않은 날짜별 흐름을 확인합니다.
+6. `검증` 결과를 확인한 뒤 담당자가 `사람 승인` 절차를 별도로 수행합니다.
+"""
+        )
+        st.warning("문서나 CSV 안의 문장은 명령이 아니라 데이터로만 취급합니다.")
+
+    with preview_tab:
+        st.subheader("입력 CSV 미리보기")
+        st.caption(f"원본 {len(raw):,}행 중 앞 {min(preview_rows, len(raw)):,}행 · 값 자동수정 없음")
+        st.dataframe(raw.head(preview_rows), use_container_width=True, hide_index=True)
+        st.write("열 목록:", ", ".join(raw.columns))
+
+    with data_validation_tab:
+        st.subheader("집계 전 데이터 검증")
+        checks = pd.DataFrame(
+            [
+                ("필수 열", "통과", ", ".join(REQUIRED_COLUMNS)),
+                ("LOT 번호 누락·중복", "통과", "앞뒤 공백 제거 후 중복 확인"),
+                ("설비 번호", "통과", "누락 없음"),
+                ("작업 날짜", "통과", "실재하는 YYYY-MM-DD"),
+                ("검사·양품수량", "통과", "0~9 정수 및 범위 확인"),
+                ("합성자료 표기", "통과", "SYN-, EQ-SIM-, SIM-"),
+            ],
+            columns=["검사항목", "자동 검증", "기준"],
+        )
+        st.dataframe(checks, use_container_width=True, hide_index=True)
+        st.success(f"오류 0건 · 검증 통과 {len(validated):,}행")
+
+    with lot_tab:
+        st.subheader("LOT 연결")
+        st.caption("각 LOT를 작업 날짜·설비·불량유형과 연결합니다. LOT별 수율은 참고값이며 전체 수율 계산에 단순 평균하지 않습니다.")
+        first, second = st.columns(2)
+        equipment_filter = first.multiselect(
+            "설비 필터", sorted(lot_links["equipment_id"].unique()), key="lot_equipment_filter"
+        )
+        defect_filter = second.multiselect(
+            "불량유형 필터", sorted(lot_links["defect_type"].unique()), key="lot_defect_filter"
+        )
+        filtered_lots = lot_links.copy()
+        if equipment_filter:
+            filtered_lots = filtered_lots[filtered_lots["equipment_id"].isin(equipment_filter)]
+        if defect_filter:
+            filtered_lots = filtered_lots[filtered_lots["defect_type"].isin(defect_filter)]
+        st.dataframe(
+            filtered_lots.style.format({"yield_pct": "{:.2f}%"}),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with equipment_tab:
+        st.subheader("장비별 수율")
+        st.caption("장비별 양품수량 합계 ÷ 검사수량 합계 × 100 · LOT별 수율 단순 평균 아님")
+        equipment_fig = equipment_figure(equipment)
+        st.pyplot(equipment_fig, use_container_width=True)
+        st.dataframe(
+            equipment.style.format(
+                {
+                    "lot_count": "{:,.0f}",
+                    "inspected_qty": "{:,.0f}",
+                    "good_qty": "{:,.0f}",
+                    "defect_qty": "{:,.0f}",
+                    "yield_pct": "{:.2f}%",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.warning("장비별 수율 차이는 원인이나 설비 우열을 증명하지 않습니다.")
 
     with pareto_tab:
         st.subheader("불량수량 기준 유형별 우선순위")
@@ -395,18 +564,26 @@ def main() -> None:
         st.warning("이 순위는 우선 검토 근거이며 불량 원인 또는 인과관계의 증명이 아닙니다.")
 
     with yield_tab:
-        st.subheader("날짜별 생산 수율")
+        st.subheader("날짜별 생산 수율 추이")
         render_metrics(summary)
         yield_fig = yield_figure(daily)
         st.pyplot(yield_fig, use_container_width=True)
         st.dataframe(daily_export(daily), use_container_width=True, hide_index=True)
 
-    with export_tab:
-        st.subheader("자동 검증과 결과 다운로드")
-        left, right = st.columns(2)
-        left.success("자동 검증: 통과")
-        right.warning("사람 승인: 미승인")
-        st.write("필수 열·LOT·설비·날짜·수량 검증과 집계 전후 수량 합계 일치를 확인했습니다.")
+    with verification_tab:
+        st.subheader("자동 검증 결과와 다운로드")
+        st.success("자동 검증: 통과")
+        verification = pd.DataFrame(
+            [
+                ("입력 행 검증", "통과", f"{len(validated):,}행"),
+                ("검사수량 합계 보존", "통과", f"{summary['total_inspected']:,}개"),
+                ("양품수량 합계 보존", "통과", f"{summary['total_good']:,}개"),
+                ("파레토 마지막 누적비중", "통과", f"{pareto.iloc[-1]['cumulative_pct']:.2f}%"),
+                ("결측일 0 대체·보간", "통과", "미수행"),
+            ],
+            columns=["검사항목", "상태", "근거"],
+        )
+        st.dataframe(verification, use_container_width=True, hide_index=True)
 
         daily_csv = daily_export(daily).to_csv(index=False).encode("utf-8-sig")
         pareto_csv = pareto.to_csv(index=False).encode("utf-8-sig")
@@ -421,6 +598,16 @@ def main() -> None:
         buttons[2].download_button("AI 요약 JSON", summary_json, "ai_summary.json", "application/json")
         buttons[3].download_button("수율 PNG", dashboard_png, "production_dashboard.png", "image/png")
         st.caption("다운로드 결과에는 원본 행 전체를 담지 않으며, 입력 CSV는 수정하지 않습니다.")
+
+    with approval_tab:
+        st.subheader("사람 승인")
+        st.warning("사람 승인 상태: 미승인")
+        st.write("자동 검증 통과는 사람 승인을 의미하지 않습니다. 담당자가 아래 항목을 직접 확인해야 합니다.")
+        st.checkbox("입력 자료가 합성 연습자료임을 확인", key="approval_synthetic")
+        st.checkbox("집계 단위가 불량수량이고 수율이 수량 합계 기준임을 확인", key="approval_units")
+        st.checkbox("결측일을 0%나 추정값으로 해석하지 않음을 확인", key="approval_missing")
+        st.checkbox("파레토와 장비별 순위가 원인 증명이 아님을 확인", key="approval_limits")
+        st.info("이 체크박스는 검토 보조용이며 승인 기록을 저장하지 않습니다. 정식 승인 기록은 조직의 승인 절차에서 남기세요.")
 
 
 if __name__ == "__main__":
