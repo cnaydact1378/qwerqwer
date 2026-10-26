@@ -38,9 +38,9 @@ python -m streamlit run streamlit_app.py
 
 외부 공개 배포에는 GitHub와 Streamlit 계정 인증이 필요합니다.
 
-1. `ax_work` 프로젝트를 비공개 GitHub 저장소에 올립니다.
-2. [Streamlit Community Cloud](https://share.streamlit.io/)에서 **Create app**을 선택합니다.
-3. 저장소와 브랜치를 선택합니다.
+1. [Streamlit Community Cloud](https://share.streamlit.io/)에서 **Create app**을 선택합니다.
+2. 저장소 `cnaydact1378/qwerqwer`와 브랜치 `main`을 선택합니다.
+3. 배포 설정을 엽니다.
 4. `qwerqwer` 저장소에서는 Main file path를 다음과 같이 지정합니다.
 
    ```text
