@@ -1,16 +1,23 @@
 # 합성 생산자료 Streamlit 대시보드
 
-현재 프로젝트에서 수행한 두 분석을 작업별 탭으로 통합한 배포용 앱입니다.
+현재 프로젝트의 입력 확인부터 분석·검증·사람 승인 안내까지 작업별 탭으로 통합한 배포용 앱입니다.
 
-- `① 불량 파레토`: `defect_qty = inspected_qty - good_qty`를 유형별로 합산하고 누적비중을 표시합니다.
-- `② 생산 수율`: 모든 달력일을 포함해 일별 수율과 검사수량을 표시합니다.
-- `③ 검증·내보내기`: 자동 검증/사람 승인 상태와 CSV·JSON·PNG 다운로드를 제공합니다.
+- `폴더`: 배포 파일 구성과 현재 입력 경로
+- `작업 안내`: 처리 순서와 해석 원칙
+- `CSV 미리보기`: 자동 수정하지 않은 입력값 미리보기
+- `데이터 검증`: 필수 열, LOT, 설비, 날짜, 수량, 합성 표기 검사
+- `LOT 연결`: LOT와 날짜·설비·불량유형 연결
+- `장비별 수율`: 장비별 수량 합계 기준 수율
+- `불량 파레토`: 불량수량 합계와 누적비중
+- `수율 추이`: 모든 달력일을 포함한 수율·검사수량 그래프
+- `검증`: 자동 검증 근거와 결과 다운로드
+- `사람 승인`: 자동 검증과 분리된 담당자 확인 안내
 
 ## 폴더 구조
 
 ```text
 ax_work/
-└─ streamlit_dashboard_20261026_132510/
+└─ streamlit_dashboard_20261026_134301/
    ├─ streamlit_app.py                  # Streamlit 진입점
    ├─ requirements.txt
    ├─ README.md
@@ -27,7 +34,7 @@ ax_work/
 PowerShell에서 다음 명령을 실행합니다.
 
 ```powershell
-cd C:\Users\eyeqlab010\Desktop\ax_work\streamlit_dashboard_20261026_132510
+cd C:\Users\eyeqlab010\Desktop\ax_work\streamlit_dashboard_20261026_134301
 python -m pip install -r requirements.txt
 python -m streamlit run streamlit_app.py
 ```
