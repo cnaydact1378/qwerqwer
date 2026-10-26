@@ -41,10 +41,10 @@ python -m streamlit run streamlit_app.py
 1. `ax_work` 프로젝트를 비공개 GitHub 저장소에 올립니다.
 2. [Streamlit Community Cloud](https://share.streamlit.io/)에서 **Create app**을 선택합니다.
 3. 저장소와 브랜치를 선택합니다.
-4. Main file path를 다음과 같이 지정합니다.
+4. `qwerqwer` 저장소에서는 Main file path를 다음과 같이 지정합니다.
 
    ```text
-   streamlit_dashboard_20261026_132510/streamlit_app.py
+   streamlit_app.py
    ```
 
 5. 배포를 시작합니다. 별도 비밀값이나 API 키는 필요하지 않습니다.
